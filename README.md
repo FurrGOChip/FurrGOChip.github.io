@@ -17,23 +17,10 @@ Bienvenido a **FurrGoChip**, una página creada para compartir proyectos, herram
 
 ---
 
-## 📸 Vista previa
-
-```txt
-███████╗██╗   ██╗██████╗ ██████╗  ██████╗  ██████╗██╗  ██╗██╗██████╗
-██╔════╝██║   ██║██╔══██╗██╔══██╗██╔════╝ ██╔════╝██║  ██║██║██╔══██╗
-█████╗  ██║   ██║██████╔╝██████╔╝██║  ██╗ ██║     ███████║██║██████╔╝
-██╔══╝  ██║   ██║██╔══██╗██╔══██╗██║   ██║██║     ██╔══██║██║██╔═══╝
-██║     ╚██████╔╝██║  ██║██║  ██║╚██████╔╝╚██████╗██║  ██║██║██║
-╚═╝      ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚═╝╚═╝
-```
-
----
-
 ## 🔗 Enlaces
 
-* 🌍 Página web: [FurrGoChip Website](https://furrgochip.github.io/?utm_source=chatgpt.com)
-* 💻 GitHub: [GitHub Pages](https://github.com/furrgochip?utm_source=chatgpt.com)
+* 🌍 Página web: [FurrGoChip Website](https://furrgochip.github.io/?utm_source=pornhub.com)
+* 💻 GitHub: [GitHub Pages](https://github.com/furrgochip?utm_source=pornhub.com)
 
 ---
 
