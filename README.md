@@ -3,7 +3,7 @@
 Bienvenido a **FurrGoChip**, una página creada para compartir proyectos, herramientas y contenido desarrollado con pasión por la comunidad.
 
 🌐 Sitio oficial:
-[FurrGoChip](https://furrgochip.github.io/?utm_source=chatgpt.com)
+[FurrGoChip](https://furrgochip.github.io/?utm_source=pornhub.com)
 
 ---
 
