@@ -3,12 +3,13 @@ local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 
 local ESP = { Master = false, Box = false, Names = false, Distance = false, Tracers = false }
-local Aimlock = { Master = false, AimAssist = false, AimLock = false, Target = "Cercano", FOV = 120, Smoothness = 45, Prediction = 8 }
+local Aimlock = { Master = false, AimAssist = false, AimLock = false, Target = "Cercano", FOV = 120, Smoothness = 45, Prediction = 8, AutoShoot = false, AutoShootBtn = false }
 local Pointer = { Paw = false }
 local LockedTarget = nil
 local LockedPart = nil
@@ -19,6 +20,8 @@ local ESPObjects = {}
 local ESPColor = Color3.fromRGB(0, 255, 0)
 local fovGui = nil
 local TeamColorCache = {}
+local RoleDataCache = nil
+local LastRoleDataRefresh = 0
 local TeamPalette = {
     Color3.fromRGB(255, 80, 80),
     Color3.fromRGB(80, 145, 255),
@@ -29,6 +32,13 @@ local TeamPalette = {
     Color3.fromRGB(80, 225, 230),
     Color3.fromRGB(245, 245, 245)
 }
+
+local transData = {
+    {v = 0, n = "Nada de transparencia"},
+    {v = 0.25, n = "Poca transparencia"},
+    {v = 0.65, n = "Mucha transparencia"}
+}
+local transIdx = 1
 
 local WOLF_PAW_ID = "rbxassetid://1068832074"
 local OriginalMouseIcon = Mouse.Icon or ""
@@ -135,30 +145,298 @@ local function GetLabelAdornee(char)
     return GetRoot(char)
 end
 
-local function GetPlayerESPColor(player)
-    if player.TeamColor then
-        local color = player.TeamColor.Color
-        if color ~= BrickColor.new("White").Color then
-            return color
+local function NormalizeRoleName(role)
+    if not role then return nil end
+    role = tostring(role)
+    if role == "" then return nil end
+    local lowerRole = string.lower(role)
+    if lowerRole:find("murder") or lowerRole:find("asesino") or lowerRole:find("killer") then
+        return "Asesino"
+    end
+    if lowerRole:find("sheriff") or lowerRole:find("policia") or lowerRole:find("detective") then
+        return "Sheriff"
+    end
+    if lowerRole:find("hero") or lowerRole:find("heroe") then
+        return "Heroe"
+    end
+    if lowerRole:find("innocent") or lowerRole:find("inocente") or lowerRole:find("civil") then
+        return "Inocente"
+    end
+    return role
+end
+
+local function GetCachedRoleData()
+    local now = os.clock()
+    if now - LastRoleDataRefresh < 1.25 then
+        return RoleDataCache ~= false and RoleDataCache or nil
+    end
+    LastRoleDataRefresh = now
+    local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+    local extras = remotes and remotes:FindFirstChild("Extras")
+    local getter = extras and extras:FindFirstChild("GetPlayerData")
+    if not getter then
+        getter = ReplicatedStorage:FindFirstChild("GetPlayerData", true)
+    end
+    if not getter or not getter:IsA("RemoteFunction") then
+        RoleDataCache = false
+        return nil
+    end
+    local ok, data = pcall(function()
+        return getter:InvokeServer()
+    end)
+    if ok and type(data) == "table" then
+        RoleDataCache = data
+        return RoleDataCache
+    end
+    RoleDataCache = false
+    return nil
+end
+
+local function ReadRoleRecord(record)
+    if type(record) == "string" then
+        return NormalizeRoleName(record)
+    end
+    if type(record) ~= "table" then
+        return nil
+    end
+    return NormalizeRoleName(record.Role or record.role or record.Rol or record.rol or record.Team or record.team)
+end
+
+local function GetRemoteRoleName(player)
+    local data = GetCachedRoleData()
+    if not data then return nil end
+    local directRole = ReadRoleRecord(data[player.Name]) or ReadRoleRecord(data[tostring(player.UserId)]) or ReadRoleRecord(data[player.UserId])
+    if directRole then return directRole end
+    for _, record in pairs(data) do
+        if type(record) == "table" then
+            local recordName = record.Name or record.PlayerName or record.Username
+            local recordUserId = record.UserId or record.userId
+            if recordName == player.Name or tostring(recordUserId) == tostring(player.UserId) then
+                local role = ReadRoleRecord(record)
+                if role then return role end
+            end
         end
     end
+    return nil
+end
+
+local function HasExactTool(container, exactNames)
+    if not container then return false end
+    for _, obj in ipairs(container:GetChildren()) do
+        if obj:IsA("Tool") then
+            local lowerName = string.lower(obj.Name)
+            for _, n in ipairs(exactNames) do
+                if lowerName == n then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+local KNIFE_NAMES = {"knife", "cuchillo"}
+local GUN_NAMES = {"gun", "revolver", "pistol", "pistola"}
+
+local function PlayerHasKnife(player)
+    if not player then return false end
+    return HasExactTool(player.Character, KNIFE_NAMES) or HasExactTool(player:FindFirstChildOfClass("Backpack"), KNIFE_NAMES)
+end
+
+local function PlayerHasGun(player)
+    if not player then return false end
+    return HasExactTool(player.Character, GUN_NAMES) or HasExactTool(player:FindFirstChildOfClass("Backpack"), GUN_NAMES)
+end
+
+local PlayerRoleMap = {}
+local LastRoleMapTime = 0
+local ROLE_MAP_REFRESH = 0.4
+local RoleMapBuildId = 0
+
+local function GetPlayerTeamOrRoleNameRaw(player)
+    local exactNames = {"Role", "role", "RoleValue", "Rol", "rol"}
+    local possibleNames = {"role", "team", "squad", "rol"}
+    local avoidNames = {"equip", "class", "job", "status", "level", "fruit", "fruta", "nivel", "clase", "weapon", "knife", "gun", "blade", "sword", "pet", "coin", "gem", "cash"}
+
+    local locations = {player, player.Character, player:FindFirstChild("leaderstats")}
+
+    for _, loc in ipairs(locations) do
+        if loc then
+            for _, exact in ipairs(exactNames) do
+                local val = loc:GetAttribute(exact)
+                if val and type(val) == "string" and val ~= "" then
+                    return NormalizeRoleName(val)
+                end
+            end
+
+            for _, exact in ipairs(exactNames) do
+                local child = loc:FindFirstChild(exact)
+                if child then
+                    if child:IsA("StringValue") and child.Value ~= "" then
+                        return NormalizeRoleName(child.Value)
+                    elseif child:IsA("ObjectValue") and child.Value and child.Value.Name then
+                        return NormalizeRoleName(child.Value.Name)
+                    end
+                end
+            end
+        end
+    end
+
+    local remoteRole = GetRemoteRoleName(player)
+    if remoteRole then
+        return remoteRole
+    end
+
+    for _, loc in ipairs(locations) do
+        if loc then
+            for attrName, attrValue in pairs(loc:GetAttributes()) do
+                local lowerName = string.lower(attrName)
+                local isGood, isBad = false, false
+                for _, pName in ipairs(possibleNames) do if lowerName:find(pName) then isGood = true; break end end
+                for _, aName in ipairs(avoidNames) do if lowerName:find(aName) then isBad = true; break end end
+
+                if isGood and not isBad and type(attrValue) == "string" and attrValue ~= "" then
+                    return NormalizeRoleName(attrValue)
+                end
+            end
+
+            for _, child in ipairs(loc:GetChildren()) do
+                local lowerName = string.lower(child.Name)
+                local isGood, isBad = false, false
+                for _, pName in ipairs(possibleNames) do if lowerName:find(pName) then isGood = true; break end end
+                for _, aName in ipairs(avoidNames) do if lowerName:find(aName) then isBad = true; break end end
+
+                if isGood and not isBad then
+                    if child:IsA("StringValue") and child.Value ~= "" then
+                        return NormalizeRoleName(child.Value)
+                    end
+                end
+            end
+        end
+    end
+
     if player.Team then
-        local key = player.Team.Name
-        if player.Team.TeamColor then
-            local color = player.Team.TeamColor.Color
-            if color ~= BrickColor.new("White").Color then
-                return color
-            end
-        end
-        if not TeamColorCache[key] then
-            local hash = 0
-            for i = 1, #key do
-                hash = (hash + string.byte(key, i) * i) % #TeamPalette
-            end
-            TeamColorCache[key] = TeamPalette[hash + 1]
-        end
-        return TeamColorCache[key]
+        return player.Team.Name
     end
+
+    return nil
+end
+
+local function BuildPlayerRoleMap(force)
+    local now = os.clock()
+    if not force and now - LastRoleMapTime < ROLE_MAP_REFRESH then return end
+    LastRoleMapTime = now
+
+    local myBuildId = RoleMapBuildId
+    local players = Players:GetPlayers()
+    local newMap = {}
+
+    for _, p in ipairs(players) do
+        local ok, role = pcall(GetPlayerTeamOrRoleNameRaw, p)
+        if ok then newMap[p] = role end
+    end
+
+    if RoleMapBuildId ~= myBuildId then return end
+
+    local toolMurderer = nil
+    local toolSheriff = nil
+    for _, p in ipairs(players) do
+        if IsAlive(p) and PlayerHasKnife(p) then
+            toolMurderer = p
+            break
+        end
+    end
+    for _, p in ipairs(players) do
+        if IsAlive(p) and p ~= toolMurderer and PlayerHasGun(p) then
+            toolSheriff = p
+            break
+        end
+    end
+
+    if toolMurderer then
+        newMap[toolMurderer] = "Asesino"
+        for _, p in ipairs(players) do
+            if p ~= toolMurderer and newMap[p] == "Asesino" then
+                newMap[p] = "Inocente"
+            end
+        end
+    else
+        for _, p in ipairs(players) do
+            if newMap[p] == "Asesino" then
+                newMap[p] = "Inocente"
+            end
+        end
+    end
+
+    if toolSheriff then
+        newMap[toolSheriff] = "Sheriff"
+        for _, p in ipairs(players) do
+            if p ~= toolSheriff and newMap[p] == "Sheriff" then
+                newMap[p] = "Inocente"
+            end
+        end
+    else
+        for _, p in ipairs(players) do
+            if newMap[p] == "Sheriff" then
+                newMap[p] = "Inocente"
+            end
+        end
+    end
+
+    local seenAsesino = nil
+    local seenSheriff = nil
+    for _, p in ipairs(players) do
+        local role = newMap[p]
+        if role == "Asesino" then
+            if seenAsesino then newMap[p] = "Inocente" else seenAsesino = p end
+        elseif role == "Sheriff" then
+            if seenSheriff then newMap[p] = "Inocente" else seenSheriff = p end
+        end
+    end
+
+    if RoleMapBuildId ~= myBuildId then return end
+    PlayerRoleMap = newMap
+end
+
+local function GetPlayerTeamOrRoleName(player)
+    if not player then return nil end
+    BuildPlayerRoleMap(false)
+    return PlayerRoleMap[player]
+end
+
+local function GetPlayerESPColor(player)
+    local teamName = GetPlayerTeamOrRoleName(player)
+    if teamName and teamName ~= "" then
+        local lowerName = string.lower(teamName)
+        
+        if lowerName:find("murder") or lowerName:find("asesino") or lowerName:find("killer") then
+            return Color3.fromRGB(255, 50, 50)
+        elseif lowerName:find("sheriff") or lowerName:find("keeper") or lowerName:find("guard") or lowerName:find("policia") or lowerName:find("cop") or lowerName:find("detective") then
+            return Color3.fromRGB(50, 150, 255)
+        elseif lowerName:find("hero") or lowerName:find("heroe") then
+            return Color3.fromRGB(255, 215, 70)
+        elseif lowerName:find("innocent") or lowerName:find("inocente") or lowerName:find("civil") or lowerName:find("jugador") or lowerName:find("player") then
+            return Color3.fromRGB(50, 220, 100)
+        end
+        
+        if player.Team and player.TeamColor and player.TeamColor.Color ~= BrickColor.new("White").Color then
+            return player.TeamColor.Color
+        end
+        
+        if not TeamColorCache[teamName] then
+            local hash = 0
+            for i = 1, #teamName do
+                hash = (hash + string.byte(teamName, i) * i) % #TeamPalette
+            end
+            TeamColorCache[teamName] = TeamPalette[hash + 1]
+        end
+        return TeamColorCache[teamName]
+    end
+    
+    if player.TeamColor and player.TeamColor.Color ~= BrickColor.new("White").Color then
+        return player.TeamColor.Color
+    end
+    
     return ESPColor
 end
 
@@ -356,6 +634,20 @@ local function ClearESPObject(player)
     end
 end
 
+local function CleanOldUI(name)
+    local g1 = CoreGui:FindFirstChild(name)
+    if g1 then g1:Destroy() end
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    if pg then
+        local g2 = pg:FindFirstChild(name)
+        if g2 then g2:Destroy() end
+    end
+end
+
+CleanOldUI("FurrGOFov")
+CleanOldUI("FurrGOPointer")
+CleanOldUI("FurrGOChip")
+
 fovGui = Instance.new("ScreenGui")
 fovGui.Name = "FurrGOFov"
 fovGui.ResetOnSpawn = false
@@ -446,7 +738,42 @@ UserInputService.InputEnded:Connect(function(input)
     end
 end)
 
-RunService.RenderStepped:Connect(function(dt)
+local function SimulateRightClick()
+    local success = pcall(function()
+        if mouse2click then
+            mouse2click()
+        else
+            local VirtualUser = game:GetService("VirtualUser")
+            VirtualUser:ClickButton2(Vector2.new(0, 0))
+        end
+    end)
+    if not success then
+        pcall(function()
+            local VirtualInputManager = game:GetService("VirtualInputManager")
+            local mouseLoc = UserInputService:GetMouseLocation()
+            VirtualInputManager:SendMouseButtonEvent(mouseLoc.X, mouseLoc.Y, 1, true, game, 1)
+            task.wait(0.01)
+            VirtualInputManager:SendMouseButtonEvent(mouseLoc.X, mouseLoc.Y, 1, false, game, 1)
+        end)
+    end
+end
+
+task.spawn(function()
+    while fovGui and fovGui.Parent do
+        task.wait(0.1)
+        if Aimlock.AutoShoot then
+            SimulateRightClick()
+        end
+    end
+end)
+
+
+local renderConn
+renderConn = RunService.RenderStepped:Connect(function(dt)
+    if not fovGui or not fovGui.Parent then
+        if renderConn then renderConn:Disconnect() end
+        return
+    end
     fovCircle.Size = UDim2.new(0, Aimlock.FOV * 2, 0, Aimlock.FOV * 2)
     fovCircle.Position = UDim2.new(0, (Camera.ViewportSize.X / 2) - Aimlock.FOV, 0, (Camera.ViewportSize.Y / 2) - Aimlock.FOV)
     fovCircle.Visible = Aimlock.Master
@@ -562,7 +889,7 @@ local function UpdateESP()
                             distStr = "\n[" .. tostring(dist) .. "m]"
                         end
                         if ESP.Names then
-                            local teamName = player.Team and player.Team.Name or "Jugador"
+                            local teamName = GetPlayerTeamOrRoleName(player) or "Jugador"
                             tl.Text = player.Name .. " (" .. teamName .. ")" .. distStr
                         else
                             tl.Text = distStr
@@ -586,23 +913,74 @@ local function UpdateESP()
     end
 end
 
-RunService.Heartbeat:Connect(function()
+local hbConn
+hbConn = RunService.Heartbeat:Connect(function()
+    if not fovGui or not fovGui.Parent then
+        if hbConn then hbConn:Disconnect() end
+        return
+    end
     UpdateESP()
 end)
 
 Players.PlayerRemoving:Connect(function(player)
     ClearESPObject(player)
+    PlayerRoleMap[player] = nil
     if LockedTarget == player then
         LockedTarget = nil
         LockedPart = nil
     end
 end)
 
+local function InvalidateRoleCache()
+    RoleMapBuildId = RoleMapBuildId + 1
+    LastRoleMapTime = 0
+    PlayerRoleMap = {}
+end
+
+local function HookPlayerForRoleInvalidation(player)
+    if not player then return end
+    local function bindBackpack(backpack)
+        if not backpack then return end
+        backpack.ChildAdded:Connect(function(child)
+            if child:IsA("Tool") then InvalidateRoleCache() end
+        end)
+        backpack.ChildRemoved:Connect(function(child)
+            if child:IsA("Tool") then InvalidateRoleCache() end
+        end)
+    end
+    local function bindCharacter(char)
+        if not char then return end
+        InvalidateRoleCache()
+        local humanoid = char:WaitForChild("Humanoid", 3)
+        if humanoid then
+            humanoid.Died:Connect(InvalidateRoleCache)
+        end
+        char.ChildAdded:Connect(function(child)
+            if child:IsA("Tool") then InvalidateRoleCache() end
+        end)
+        char.ChildRemoved:Connect(function(child)
+            if child:IsA("Tool") then InvalidateRoleCache() end
+        end)
+    end
+    bindBackpack(player:FindFirstChildOfClass("Backpack"))
+    player.ChildAdded:Connect(function(child)
+        if child:IsA("Backpack") then bindBackpack(child) end
+    end)
+    if player.Character then bindCharacter(player.Character) end
+    player.CharacterAdded:Connect(bindCharacter)
+end
+
+for _, p in ipairs(Players:GetPlayers()) do
+    HookPlayerForRoleInvalidation(p)
+end
+Players.PlayerAdded:Connect(HookPlayerForRoleInvalidation)
+
 LocalPlayer.CharacterAdded:Connect(function()
     LockedTarget = nil
     LockedPart = nil
     LastAimRefresh = 0
     SavedAutoRotate = nil
+    InvalidateRoleCache()
 end)
 
 local LOGO_ID      = "rbxassetid://86235109599983"
@@ -719,6 +1097,63 @@ local function CreateUI()
     local ok = pcall(function() gui.Parent = CoreGui end)
     if not ok then gui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
 
+    local floatBtn = Instance.new("TextButton")
+    floatBtn.Name = "AutoShootFloatBtn"
+    floatBtn.Size = UDim2.new(0, 50, 0, 50)
+    floatBtn.Position = UDim2.new(0.3, 25, 0.5, 25)
+    floatBtn.AnchorPoint = Vector2.new(0.5, 0.5)
+    floatBtn.BackgroundColor3 = C_BG
+    floatBtn.Text = ""
+    floatBtn.AutoButtonColor = false
+    floatBtn.ZIndex = 500
+    floatBtn.Visible = false
+    floatBtn.Parent = gui
+    
+    Instance.new("UICorner", floatBtn).CornerRadius = UDim.new(0.5, 0)
+    local floatStr = Instance.new("UIStroke", floatBtn)
+    floatStr.Color = C_BORDER
+    floatStr.Thickness = 1.5
+    
+    local floatIcon = Instance.new("ImageLabel")
+    floatIcon.Size = UDim2.new(0, 24, 0, 24)
+    floatIcon.Position = UDim2.new(0.5, -12, 0.5, -12)
+    floatIcon.BackgroundTransparency = 1
+    floatIcon.Image = "rbxassetid://16898668482"
+    floatIcon.ImageColor3 = C_ACCENT
+    floatIcon.ImageRectOffset = Vector2.new(514, 257)
+    floatIcon.ImageRectSize = Vector2.new(256, 256)
+    floatIcon.ZIndex = 501
+    floatIcon.Parent = floatBtn
+
+    Drag(floatBtn, floatBtn)
+
+    floatBtn.MouseEnter:Connect(function()
+        Tw(floatBtn, {BackgroundColor3 = Color3.fromRGB(18, 18, 18), Size = UDim2.new(0, 54, 0, 54)}, 0.15)
+        Tw(floatStr, {Color = C_ACCENT}, 0.2)
+        Tw(floatIcon, {Size = UDim2.new(0, 26, 0, 26), Position = UDim2.new(0.5, -13, 0.5, -13)}, 0.15)
+    end)
+    
+    floatBtn.MouseLeave:Connect(function()
+        Tw(floatBtn, {BackgroundColor3 = C_BG, Size = UDim2.new(0, 50, 0, 50)}, 0.2)
+        Tw(floatStr, {Color = C_BORDER}, 0.25)
+        Tw(floatIcon, {Size = UDim2.new(0, 24, 0, 24), Position = UDim2.new(0.5, -12, 0.5, -12)}, 0.2)
+    end)
+
+    floatBtn.MouseButton1Down:Connect(function()
+        Tw(floatBtn, {Size = UDim2.new(0, 44, 0, 44)}, 0.1, Enum.EasingStyle.Sine)
+        Tw(floatStr, {Thickness = 2.5, Color = C_ACCENT_DIM}, 0.1)
+    end)
+
+    floatBtn.MouseButton1Up:Connect(function()
+        Tw(floatBtn, {Size = UDim2.new(0, 54, 0, 54)}, 0.15, Enum.EasingStyle.Back)
+        Tw(floatStr, {Thickness = 1.5, Color = C_ACCENT}, 0.15)
+    end)
+
+    floatBtn.MouseButton1Click:Connect(function()
+        SimulateRightClick()
+    end)
+
+
     local WIN_W, WIN_H = 560, 400
     local SB_W, TB_H  = 48, 36
     local isOpen = false
@@ -730,6 +1165,7 @@ local function CreateUI()
     main.Size   = UDim2.new(0, WIN_W, 0, WIN_H)
     main.Position = UDim2.new(0.5, 0, 0.18, 0)
     main.BackgroundColor3 = C_BG
+    main.BackgroundTransparency = transData[transIdx].v
     main.BorderSizePixel  = 0
     main.ClipsDescendants = true
     main.Visible = false
@@ -737,6 +1173,41 @@ local function CreateUI()
     Instance.new("UICorner", main).CornerRadius = UDim.new(0, 10)
     local mainBorder = Instance.new("UIStroke", main)
     mainBorder.Color = C_BORDER; mainBorder.Thickness = 1
+
+    local function CreateCornerGlow(position, anchor)
+        local glow = Instance.new("Frame")
+        glow.Size = UDim2.new(0, 6, 0, 6)
+        glow.Position = position
+        glow.AnchorPoint = anchor
+        glow.BackgroundColor3 = C_ACCENT
+        glow.BorderSizePixel = 0
+        glow.ZIndex = 99
+        glow.Parent = main
+        Instance.new("UICorner", glow).CornerRadius = UDim.new(1, 0)
+        
+        local stroke = Instance.new("UIStroke", glow)
+        stroke.Color = C_ACCENT
+        stroke.Thickness = 1.5
+        stroke.Transparency = 0.4
+        
+        task.spawn(function()
+            while true do
+                if not main or not main.Parent then break end
+                Tw(glow, {BackgroundTransparency = 0.1}, 1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+                Tw(stroke, {Transparency = 0.2, Thickness = 2.5}, 1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+                task.wait(1)
+                Tw(glow, {BackgroundTransparency = 0.6}, 1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+                Tw(stroke, {Transparency = 0.7, Thickness = 1.2}, 1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+                task.wait(1)
+            end
+        end)
+        return glow
+    end
+
+    CreateCornerGlow(UDim2.new(0, 5, 0, 5), Vector2.new(0, 0))
+    CreateCornerGlow(UDim2.new(1, -5, 0, 5), Vector2.new(1, 0))
+    CreateCornerGlow(UDim2.new(0, 5, 1, -5), Vector2.new(0, 1))
+    CreateCornerGlow(UDim2.new(1, -5, 1, -5), Vector2.new(1, 1))
 
     local accentLine = Instance.new("Frame")
     accentLine.Size = UDim2.new(0, 0, 0, 1)
@@ -749,6 +1220,7 @@ local function CreateUI()
     local sidebar = Instance.new("Frame")
     sidebar.Size = UDim2.new(0, SB_W, 1, 0)
     sidebar.BackgroundColor3 = C_SIDEBAR
+    sidebar.BackgroundTransparency = transData[transIdx].v
     sidebar.BorderSizePixel = 0
     sidebar.ZIndex = 5
     sidebar.Parent = main
@@ -1422,6 +1894,157 @@ local function CreateUI()
         end)
     end
 
+    local function TransparencyDropdown(parent, label)
+        local row = Instance.new("Frame")
+        row.Size = UDim2.new(1, 0, 0, 34)
+        row.BackgroundTransparency = 1
+        row.Parent = parent
+
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(1, -56, 1, 0)
+        lbl.Position = UDim2.new(0, 14, 0, 0)
+        lbl.BackgroundTransparency = 1
+        lbl.Text = label
+        lbl.TextColor3 = C_PRI
+        lbl.Font = Enum.Font.GothamMedium
+        lbl.TextSize = 12
+        lbl.TextXAlignment = Enum.TextXAlignment.Left
+        lbl.Parent = row
+
+        local hamburger = Instance.new("TextButton")
+        hamburger.Size = UDim2.new(0, 24, 0, 24)
+        hamburger.Position = UDim2.new(1, -38, 0.5, -12)
+        hamburger.BackgroundTransparency = 1
+        hamburger.Text = ""
+        hamburger.AutoButtonColor = false
+        hamburger.Parent = row
+
+        local lines = {}
+        for i = 1, 3 do
+            local line = Instance.new("Frame")
+            line.Size = UDim2.new(0, 14, 0, 2)
+            line.Position = UDim2.new(0.5, -7, 0.5, (i - 2) * 4 - 1)
+            line.BackgroundColor3 = C_SEC
+            line.BorderSizePixel = 0
+            line.Parent = hamburger
+            Instance.new("UICorner", line).CornerRadius = UDim.new(1, 0)
+            table.insert(lines, line)
+        end
+
+        local dropdown = Instance.new("Frame")
+        dropdown.Size = UDim2.new(1, 0, 0, 0)
+        dropdown.BackgroundTransparency = 1
+        dropdown.ClipsDescendants = true
+        dropdown.Visible = false
+        dropdown.Parent = parent
+
+        local dList = Instance.new("UIListLayout", dropdown)
+        dList.SortOrder = Enum.SortOrder.LayoutOrder
+        dList.Padding = UDim.new(0, 4)
+
+        local dpPadding = Instance.new("UIPadding", dropdown)
+        dpPadding.PaddingLeft = UDim.new(0, 14)
+        dpPadding.PaddingRight = UDim.new(0, 14)
+        dpPadding.PaddingBottom = UDim.new(0, 6)
+
+        local buttons = {}
+        local menuOpen = false
+
+        local function refreshSelection()
+            for i, opt in ipairs(transData) do
+                local btn = buttons[i]
+                local isSel = (transIdx == i)
+                if isSel then
+                    Tw(btn.bg, {BackgroundColor3 = Color3.fromRGB(26, 26, 26)}, 0.18)
+                    Tw(btn.lbl, {TextColor3 = C_ACCENT}, 0.18)
+                    Tw(btn.stroke, {Color = C_ACCENT_DIM}, 0.18)
+                else
+                    Tw(btn.bg, {BackgroundColor3 = Color3.fromRGB(16, 16, 16)}, 0.18)
+                    Tw(btn.lbl, {TextColor3 = C_SEC}, 0.18)
+                    Tw(btn.stroke, {Color = C_BORDER}, 0.18)
+                end
+            end
+        end
+
+        local function applyTransparency(tVal)
+            if isOpen then
+                Tw(main, {BackgroundTransparency = tVal}, 0.3, Enum.EasingStyle.Quint)
+                Tw(sidebar, {BackgroundTransparency = tVal}, 0.3, Enum.EasingStyle.Quint)
+            end
+        end
+
+        for i, s in ipairs(transData) do
+            local btn = Instance.new("TextButton")
+            btn.Size = UDim2.new(1, 0, 0, 26)
+            btn.BackgroundColor3 = Color3.fromRGB(16, 16, 16)
+            btn.Text = ""
+            btn.AutoButtonColor = false
+            btn.Parent = dropdown
+            Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
+            local btnStroke = Instance.new("UIStroke", btn)
+            btnStroke.Color = C_BORDER
+            btnStroke.Thickness = 1
+
+            local btnLbl = Instance.new("TextLabel")
+            btnLbl.Size = UDim2.new(1, 0, 1, 0)
+            btnLbl.BackgroundTransparency = 1
+            btnLbl.Text = s.n
+            btnLbl.TextColor3 = C_SEC
+            btnLbl.Font = Enum.Font.GothamMedium
+            btnLbl.TextSize = 11
+            btnLbl.Parent = btn
+
+            buttons[i] = {bg = btn, lbl = btnLbl, stroke = btnStroke}
+
+            btn.MouseEnter:Connect(function()
+                if transIdx ~= i then
+                    Tw(btnStroke, {Color = C_SEC}, 0.15)
+                    Tw(btnLbl, {TextColor3 = C_PRI}, 0.15)
+                end
+            end)
+            btn.MouseLeave:Connect(function()
+                if transIdx ~= i then
+                    Tw(btnStroke, {Color = C_BORDER}, 0.2)
+                    Tw(btnLbl, {TextColor3 = C_SEC}, 0.2)
+                end
+            end)
+
+            btn.MouseButton1Click:Connect(function()
+                transIdx = i
+                local tVal = transData[transIdx].v
+                applyTransparency(tVal)
+                refreshSelection()
+                menuOpen = false
+                Tw(dropdown, {Size = UDim2.new(1, 0, 0, 0)}, 0.25, Enum.EasingStyle.Quint)
+                task.delay(0.25, function() if not menuOpen then dropdown.Visible = false end end)
+                for _, l in ipairs(lines) do Tw(l, {BackgroundColor3 = C_SEC}, 0.2) end
+            end)
+        end
+
+        hamburger.MouseEnter:Connect(function()
+            for _, l in ipairs(lines) do Tw(l, {BackgroundColor3 = C_ACCENT}, 0.15) end
+        end)
+        hamburger.MouseLeave:Connect(function()
+            if not menuOpen then
+                for _, l in ipairs(lines) do Tw(l, {BackgroundColor3 = C_SEC}, 0.2) end
+            end
+        end)
+
+        hamburger.MouseButton1Click:Connect(function()
+            menuOpen = not menuOpen
+            if menuOpen then
+                dropdown.Visible = true
+                refreshSelection()
+                Tw(dropdown, {Size = UDim2.new(1, 0, 0, 90)}, 0.3, Enum.EasingStyle.Back)
+                for _, l in ipairs(lines) do Tw(l, {BackgroundColor3 = C_ACCENT}, 0.2) end
+            else
+                Tw(dropdown, {Size = UDim2.new(1, 0, 0, 0)}, 0.25, Enum.EasingStyle.Quint)
+                task.delay(0.25, function() if not menuOpen then dropdown.Visible = false end end)
+                for _, l in ipairs(lines) do Tw(l, {BackgroundColor3 = C_SEC}, 0.2) end
+            end
+        end)
+    end
+
     local espPage = MakeTab(58, "ESP", IcoESP)
     SecHead(espPage, "ESP", "Resalta jugadores, equipos, distancia y trazadores.")
     local cESP1 = Card(espPage)
@@ -1463,6 +2086,14 @@ local function CreateUI()
     Slider(cAim5, "Suavidad", 1, 100, "Smoothness", Aimlock)
     Slider(cAim5, "Prediccion",  0, 25,  "Prediction", Aimlock)
 
+    SecHead(aimPage, "Auto Disparo")
+    local cAim6 = Card(aimPage)
+    Toggle(cAim6, "Auto Disparo", "AutoShoot", Aimlock)
+    Toggle(cAim6, "Auto Disparo (boton)", "AutoShootBtn", Aimlock, function(on)
+        if floatBtn then floatBtn.Visible = on end
+    end)
+
+
     local pntPage = MakeTab(150, "Ptr", IcoPtr)
     SecHead(pntPage, "Configuracion del puntero", "Personaliza el cursor que ves al jugar.")
     local cPnt1 = Card(pntPage)
@@ -1472,6 +2103,7 @@ local function CreateUI()
     SecHead(configPage, "Ajustes de Interfaz", "Personaliza la apariencia y el tamaño de la ventana.")
     local cConfig = Card(configPage)
     SizeDropdown(cConfig, "Tamaño de Ventana")
+    TransparencyDropdown(cConfig, "Transparencia de Ventana")
 
     local credPage = MakeTab(242, "Creditos", IcoCreditos)
     SecHead(credPage, "Creditos", "Informacion del proyecto y sus responsables.")
@@ -1479,7 +2111,7 @@ local function CreateUI()
     local creditos = {
         {"Desarrollador", "@TheRealBanHammer"},
         {"Dueño", "@LokyChips"},
-        {"Versión", "1.0"}
+        {"Versión", "1.1"}
     }
     for _, dato in ipairs(creditos) do
         local row = Instance.new("Frame")
@@ -1547,9 +2179,12 @@ local function CreateUI()
     local function Open()
         isOpen = true
         main.Size = UDim2.new(0, CUR_W * 0.93, 0, 0)
-        main.BackgroundTransparency = 0.25
+        local tVal = transData[transIdx].v
+        main.BackgroundTransparency = math.clamp(tVal + 0.2, 0, 1)
+        sidebar.BackgroundTransparency = math.clamp(tVal + 0.2, 0, 1)
         main.Visible = true
-        Tw(main, {Size = UDim2.new(0, CUR_W, 0, CUR_H), BackgroundTransparency = 0}, 0.38, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+        Tw(main, {Size = UDim2.new(0, CUR_W, 0, CUR_H), BackgroundTransparency = tVal}, 0.38, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+        Tw(sidebar, {BackgroundTransparency = tVal}, 0.38, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
         mainBorder.Color = C_ACCENT
         Tw(mainBorder, {Color = C_BORDER}, 0.7)
         Tw(tbStr, {Color = C_ACCENT}, 0.2)
@@ -1572,11 +2207,14 @@ local function CreateUI()
         Tw(titleLbl, {TextTransparency = 1}, 0.12)
         Tw(subLbl,   {TextTransparency = 1}, 0.1)
         Tw(accentLine, {Size = UDim2.new(0, 0, 0, 1)}, 0.18)
-        local tw = Tw(main, {Size = UDim2.new(0, CUR_W * 0.95, 0, 0), BackgroundTransparency = 0.2}, 0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+        local tVal = transData[transIdx].v
+        local tw = Tw(main, {Size = UDim2.new(0, CUR_W * 0.95, 0, 0), BackgroundTransparency = math.clamp(tVal + 0.2, 0, 1)}, 0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+        Tw(sidebar, {BackgroundTransparency = math.clamp(tVal + 0.2, 0, 1)}, 0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
         tw.Completed:Connect(function()
             if not isOpen then
                 main.Visible = false
-                main.BackgroundTransparency = 0
+                main.BackgroundTransparency = tVal
+                sidebar.BackgroundTransparency = tVal
             end
         end)
         Tw(tbStr, {Color = C_BORDER}, 0.3)
