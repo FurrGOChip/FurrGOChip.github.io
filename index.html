@@ -2606,15 +2606,9 @@
             </svg>
             <input id="searchInput" type="search" placeholder="Buscar scripts">
           </label>
-          <div class="filters" id="filters">
-            <button class="filter-btn active" data-filter="all">Todos</button>
-            <button class="filter-btn" data-filter="featured">Destacados</button>
-            <button class="filter-btn" data-filter="roblox">Roblox</button>
-            <button class="filter-btn" data-filter="hub">Hubs</button>
-          </div>
           <div class="panel-feature">
             <strong>Encuentra el script que necesitas.</strong>
-            <span>Usa el buscador y los filtros para explorar el catálogo, revisar cada código y copiarlo al instante.</span>
+            <span>Usa el buscador para explorar el catálogo, revisar cada código y copiarlo al instante.</span>
             <img id="panelImage" src="https://i.postimg.cc/MZ4YJ4Xf/df144674-e1a2-41f8-9ca8-7b938fe9e2f7.png" alt="">
           </div>
         </aside>
@@ -2691,13 +2685,20 @@
         tags: ["Destacado", "Roblox", "Hub"],
         categories: ["featured", "roblox", "hub"],
         image: "https://i.postimg.cc/brq86RKj/loc-phub-jpg.png"
+      },
+      {
+        title: "FurrGO",
+        description: "Carga FurrGO directamente desde su script principal para usarlo dentro del juego.",
+        code: "loadstring(game:HttpGet(\"https://furrgochip.github.io/ScriptMain.lua\"))()",
+        tags: ["Nuevo", "Roblox", "Script"],
+        categories: ["featured", "roblox", "hub"],
+        image: "https://i.postimg.cc/1zG9sLyW/Logo.png"
       }
     ];
 
     const iconCopy = `<svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 8h10v12H8zM6 16H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"></path></svg>`;
     const iconSpark = `<svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3ZM18 15l.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8L18 15Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path></svg>`;
 
-    let activeFilter = "all";
     let heroIndex = 0;
     let toastTimer;
     const compactView = window.matchMedia("(max-width: 600px)").matches;
@@ -2722,9 +2723,8 @@
     function renderScripts() {
       const query = searchInput.value.trim().toLowerCase();
       const filtered = scripts.filter((item) => {
-        const matchesFilter = activeFilter === "all" || item.categories.includes(activeFilter);
         const matchesSearch = `${item.title} ${item.description} ${item.tags.join(" ")}`.toLowerCase().includes(query);
-        return matchesFilter && matchesSearch;
+        return matchesSearch;
       });
 
       scriptList.innerHTML = filtered.map((item, index) => `
@@ -2912,14 +2912,6 @@
         document.body.style.setProperty("--mouse-y", `${event.clientY}px`);
       });
     }
-
-    document.getElementById("filters").addEventListener("click", (event) => {
-      const button = event.target.closest("[data-filter]");
-      if (!button) return;
-      activeFilter = button.dataset.filter;
-      document.querySelectorAll("[data-filter]").forEach((item) => item.classList.toggle("active", item === button));
-      renderScripts();
-    });
 
     searchInput.addEventListener("input", renderScripts);
 
