@@ -1715,6 +1715,172 @@
       display: block;
     }
 
+    .credits-showcase {
+      padding-top: 132px;
+      padding-bottom: 108px;
+    }
+
+    .developer-panel {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(280px, 0.72fr) minmax(0, 1fr);
+      gap: clamp(28px, 5vw, 58px);
+      align-items: center;
+      padding: clamp(16px, 2vw, 22px);
+      border: 1px solid rgba(132, 255, 172, 0.26);
+      border-radius: 34px;
+      background:
+        radial-gradient(circle at 12% 12%, rgba(77, 255, 136, 0.2), transparent 32%),
+        radial-gradient(circle at 92% 84%, rgba(255, 207, 117, 0.13), transparent 28%),
+        linear-gradient(145deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.028)),
+        rgba(5, 13, 8, 0.72);
+      box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      overflow: hidden;
+      backdrop-filter: blur(24px) saturate(1.25);
+      transform-style: preserve-3d;
+    }
+
+    .developer-panel::before {
+      content: "";
+      position: absolute;
+      width: 320px;
+      height: 320px;
+      right: -110px;
+      top: -130px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(157, 255, 209, 0.2), transparent 66%);
+      pointer-events: none;
+    }
+
+    .developer-panel::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(120deg, rgba(255, 255, 255, 0.13), transparent 26%, transparent 72%, rgba(77, 255, 136, 0.08));
+      pointer-events: none;
+    }
+
+    .developer-portrait {
+      position: relative;
+      z-index: 1;
+      aspect-ratio: 1;
+      border-radius: 28px;
+      overflow: hidden;
+      border: 1px solid rgba(77, 255, 136, 0.42);
+      background:
+        radial-gradient(circle at 50% 42%, rgba(157, 255, 209, 0.18), transparent 35%),
+        #020403;
+      box-shadow: 0 30px 70px rgba(0, 0, 0, 0.42), 0 0 28px rgba(77, 255, 136, 0.08);
+      transform: translateZ(34px);
+    }
+
+    .developer-portrait img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      filter: saturate(0.95) contrast(1.04);
+      transition: transform 0.8s ease, filter 0.8s ease;
+    }
+
+    .developer-panel:hover .developer-portrait img {
+      transform: scale(1.045);
+      filter: saturate(1.1) contrast(1.08);
+    }
+
+    .developer-badge {
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      display: grid;
+      place-items: center;
+      width: 54px;
+      height: 54px;
+      border-radius: 20px;
+      color: #021407;
+      background: linear-gradient(135deg, var(--green), var(--mint));
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      box-shadow: 0 18px 36px rgba(0, 0, 0, 0.38), 0 0 24px rgba(77, 255, 136, 0.24);
+    }
+
+    .developer-badge svg {
+      width: 27px;
+      height: 27px;
+    }
+
+    .developer-content {
+      position: relative;
+      z-index: 1;
+      min-width: 0;
+      transform: translateZ(46px);
+    }
+
+    .developer-kicker {
+      margin: 0 0 14px;
+      color: var(--green);
+      font-size: 0.82rem;
+      font-weight: 900;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+    }
+
+    .developer-content h2 {
+      margin: 0;
+      font-family: var(--font-display);
+      max-width: 100%;
+      font-size: clamp(2.05rem, 4.05vw, 3.65rem);
+      line-height: 0.9;
+      letter-spacing: 0;
+      white-space: nowrap;
+    }
+
+    .developer-alias {
+      margin: 12px 0 28px;
+      color: rgba(232, 255, 241, 0.44);
+      font-family: var(--font-accent);
+      font-size: clamp(1.85rem, 4vw, 3.35rem);
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .developer-copy {
+      max-width: 780px;
+      margin: 0 0 30px;
+      color: var(--muted);
+      font-size: clamp(1rem, 1.8vw, 1.2rem);
+      line-height: 1.72;
+    }
+
+    .developer-links {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .developer-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 48px;
+      height: 40px;
+      border-radius: 14px;
+      color: #021407;
+      background: linear-gradient(135deg, var(--text), var(--mint));
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.3);
+      transition: transform 0.22s ease, box-shadow 0.22s ease, filter 0.22s ease;
+    }
+
+    .developer-link:hover {
+      transform: translateY(-3px);
+      filter: saturate(1.12);
+      box-shadow: 0 18px 42px rgba(77, 255, 136, 0.16);
+    }
+
+    .developer-link svg {
+      width: 23px;
+      height: 23px;
+    }
+
     footer {
       padding: 70px 0 110px;
       color: var(--muted);
@@ -1970,6 +2136,28 @@
         border-radius: 28px;
       }
 
+      .developer-panel {
+        grid-template-columns: 1fr;
+        gap: 24px;
+        padding: 16px;
+        border-radius: 28px;
+      }
+
+      .developer-portrait {
+        max-width: 430px;
+        width: 100%;
+        margin: 0 auto;
+        border-radius: 24px;
+      }
+
+      .developer-content {
+        transform: none;
+      }
+
+      .developer-kicker {
+        letter-spacing: 0.18em;
+      }
+
       .tiktok-actions,
       .tiktok-btn {
         width: 100%;
@@ -2109,6 +2297,16 @@
         transform: none;
       }
 
+      .developer-panel,
+      .developer-portrait {
+        transform: none;
+      }
+
+      .credits-showcase {
+        padding-top: 78px;
+        padding-bottom: 68px;
+      }
+
       .tiktok-card {
         transform: none;
       }
@@ -2160,6 +2358,35 @@
 
       .section-title {
         font-size: clamp(1.6rem, 8vw, 2.2rem);
+      }
+
+      .developer-panel {
+        padding: 12px;
+        border-radius: 24px;
+      }
+
+      .developer-portrait {
+        border-radius: 20px;
+      }
+
+      .developer-badge {
+        top: 12px;
+        right: 12px;
+        width: 46px;
+        height: 46px;
+        border-radius: 16px;
+      }
+
+      .developer-content h2 {
+        font-size: clamp(2rem, 11vw, 3.15rem);
+      }
+
+      .developer-alias {
+        margin-bottom: 20px;
+      }
+
+      .developer-copy {
+        font-size: 0.96rem;
       }
 
       .hero {
@@ -2616,6 +2843,32 @@
         <div>
           <div class="script-list" id="scriptList"></div>
           <div class="empty-state" id="emptyState">No hay scripts que coincidan con esta búsqueda.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section shell credits-showcase" id="credits">
+      <div class="developer-panel">
+        <div class="developer-portrait">
+          <img src="https://antihambreadoscriptteam.github.io/Foto/Miembros/TheRealBanHammer.png" alt="TheRealBanHammer">
+          <div class="developer-badge" aria-label="Desarrollador verificado">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M8.2 9.2 5.4 12l2.8 2.8M15.8 9.2 18.6 12l-2.8 2.8M13.3 7.5l-2.6 9" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </div>
+        </div>
+        <div class="developer-content">
+          <p class="developer-kicker">Desarrollado por</p>
+          <h2>TheRealBanHammer</h2>
+          <p class="developer-alias">(BanHammer)</p>
+          <p class="developer-copy">Reconocido desarrollador, creador de contenido y administrador principal de este sitio. TheRealBanHammer es el maestro encargado de proveer los mejores scripts, asegurar que la web funcione perfectamente y que la energÃ­a no decaiga ni un segundo en cada nuevo video de su canal.</p>
+          <div class="developer-links">
+            <a class="developer-link" href="https://www.youtube.com/@Anti-Hambreado-Script-Team" target="_blank" rel="noopener" aria-label="YouTube">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M21.58 7.15a2.75 2.75 0 0 0-1.94-1.94C17.93 4.75 12 4.75 12 4.75s-5.93 0-7.64.46a2.75 2.75 0 0 0-1.94 1.94A28.5 28.5 0 0 0 2 12a28.5 28.5 0 0 0 .42 4.85 2.75 2.75 0 0 0 1.94 1.94c1.71.46 7.64.46 7.64.46s5.93 0 7.64-.46a2.75 2.75 0 0 0 1.94-1.94A28.5 28.5 0 0 0 22 12a28.5 28.5 0 0 0-.42-4.85ZM10 15.25v-6.5L15.62 12 10 15.25Z"></path>
+              </svg>
+            </a>
+          </div>
         </div>
       </div>
     </section>
