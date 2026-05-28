@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <style>
     :root {
       --bg: #030604;
@@ -1827,17 +1828,18 @@
       margin: 0;
       font-family: var(--font-display);
       max-width: 100%;
-      font-size: clamp(2.05rem, 4.05vw, 3.65rem);
-      line-height: 0.9;
+      font-size: clamp(1.4rem, 7vw, 3.65rem);
+      line-height: 0.95;
       letter-spacing: 0;
-      white-space: nowrap;
+      white-space: normal;
+      word-break: break-word;
     }
 
     .developer-alias {
-      margin: 12px 0 28px;
+      margin: 10px 0 24px;
       color: rgba(232, 255, 241, 0.44);
       font-family: var(--font-accent);
-      font-size: clamp(1.85rem, 4vw, 3.35rem);
+      font-size: clamp(1.2rem, 6vw, 2.8rem);
       font-weight: 800;
       line-height: 1;
     }
@@ -2861,7 +2863,82 @@
           <p class="developer-kicker">Desarrollado por</p>
           <h2>TheRealBanHammer</h2>
           <p class="developer-alias">(BanHammer)</p>
-          <p class="developer-copy">Reconocido desarrollador, creador de contenido y administrador principal de este sitio. TheRealBanHammer es el maestro encargado de proveer los mejores scripts, asegurar que la web funcione perfectamente y que la energía no decaiga ni un segundo en cada nuevo video de su canal.</p>
+          <p class="developer-copy">Desarrollador apasionado por la tecnología y la creación de interfaces dinámicas. Como administrador principal, se enfoca en mantener el sitio optimizado, seguro y con un rendimiento excelente.</p>
+          
+          <style>
+            .skill-badges-container {
+              margin-bottom: 28px;
+            }
+            .skill-badges-title {
+              font-size: 0.75rem;
+              font-weight: 800;
+              text-transform: uppercase;
+              letter-spacing: 0.15em;
+              color: var(--soft);
+              margin-bottom: 12px;
+              font-family: var(--font-display);
+              display: flex;
+              align-items: center;
+              gap: 8px;
+            }
+            .skill-badges {
+              display: flex;
+              flex-wrap: wrap;
+              gap: 10px;
+            }
+            .skill-pill {
+              display: inline-flex;
+              align-items: center;
+              gap: 8px;
+              padding: 8px 14px;
+              border-radius: 14px;
+              background: var(--glass);
+              border: 1px solid var(--line);
+              color: var(--text);
+              font-size: 0.82rem;
+              font-weight: 600;
+              transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+              cursor: default;
+            }
+            .skill-pill:hover {
+              transform: translateY(-2px);
+              border-color: var(--line-strong);
+              background: var(--panel-strong);
+              box-shadow: 0 10px 24px rgba(77, 255, 136, 0.08);
+            }
+          </style>
+
+          <div class="skill-badges-container">
+            <h4 class="skill-badges-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px; color: var(--green); display: inline-block; vertical-align: middle;">
+                <path d="M7 8l-4 4 4 4M17 8l4 4-4 4M14 6l-4 12"></path>
+              </svg>
+              Tecnologías & Skills
+            </h4>
+            <div class="skill-badges">
+              <span class="skill-pill">
+                <i class="fa-brands fa-html5" style="color: #E34F26;"></i>
+                HTML
+              </span>
+              <span class="skill-pill">
+                <i class="fa-brands fa-css3-alt" style="color: #1572B6;"></i>
+                CSS
+              </span>
+              <span class="skill-pill">
+                <i class="fa-brands fa-js" style="color: #F7DF1E;"></i>
+                JS
+              </span>
+              <span class="skill-pill">
+                <i class="fa-solid fa-moon" style="color: #000080;"></i>
+                Lua
+              </span>
+              <span class="skill-pill">
+                <i class="fa-brands fa-python" style="color: #3776AB;"></i>
+                Python
+              </span>
+            </div>
+          </div>
+
           <div class="developer-links">
             <a class="developer-link" href="https://www.youtube.com/@Anti-Hambreado-Script-Team" target="_blank" rel="noopener" aria-label="YouTube">
               <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
